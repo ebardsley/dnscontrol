@@ -4,6 +4,7 @@ dnscontrol-Linux
 dnscontrol.exe
 dnscontrol
 dnsconfig.js
+/cmd/convertzone/convertzone*
 creds.json
 ExternalDNS
 docs/_site
