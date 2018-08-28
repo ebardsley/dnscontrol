@@ -76,6 +76,34 @@ func (args *PushArgs) flags() []cli.Flag {
 	return flags
 }
 
+var _ = cmd(catUtils, func() *cli.Command {
+	var args ImportArgs
+	return &cli.Command{
+		Name:  "import",
+		Usage: "import changes from a provider and dump",
+		Action: func(ctx *cli.Context) error {
+			return exit(Import(args))
+		},
+		Flags: args.flags(),
+	}
+}())
+
+// ImportArgs contains all data/flags needed to run import, independently of CLI
+type ImportArgs struct {
+	PreviewArgs
+	OutputFilename string
+}
+
+func (args *ImportArgs) flags() []cli.Flag {
+	flags := args.PreviewArgs.flags()
+	flags = append(flags, cli.StringFlag{
+		Name:        "out",
+		Destination: &args.OutputFilename,
+		Usage:       "Output filename",
+	})
+	return flags
+}
+
 // Preview implements the preview subcommand.
 func Preview(args PreviewArgs) error {
 	return run(args, false, false, printer.ConsolePrinter{})
@@ -84,6 +112,29 @@ func Preview(args PreviewArgs) error {
 // Push implements the push subcommand.
 func Push(args PushArgs) error {
 	return run(args.PreviewArgs, true, args.Interactive, printer.ConsolePrinter{})
+}
+
+func Import(args ImportArgs) error {
+	out := printer.ConsolePrinter{}
+
+	cfg, err := GetDNSConfig(args.GetDNSConfigArgs)
+	if err != nil {
+		return err
+	}
+	// Don't bother to Normalize/Validate.
+	notifier, err := InitializeProviders(args.CredsFile, cfg, false /* notify */)
+	if err != nil {
+		return err
+	}
+	defer notifier.Done()
+
+	for _, domain := range cfg.Domains {
+		if !args.shouldRunDomain(domain.Name) {
+			continue
+		}
+		out.StartDomain(domain.Name)
+	}
+	return nil
 }
 
 // run is the main routine common to preview/push

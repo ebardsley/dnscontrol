@@ -1,6 +1,8 @@
 package models
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -165,6 +167,61 @@ func (rc *RecordConfig) GetLabel() string {
 // It will not end with ".".
 func (rc *RecordConfig) GetLabelFQDN() string {
 	return rc.NameFQDN
+}
+
+// ToDSL convers a RecordConfig to a DSL-compatible string.
+func (rc *RecordConfig) ToDSL() string {
+	var b bytes.Buffer
+	output := func(v interface{}) {
+		j, err := json.Marshal(v)
+		if err != nil {
+			panic(err)
+		}
+		b.Write(j)
+	}
+	b.WriteString(rc.Type)
+	b.WriteString("(")
+	output(strings.ToLower(rc.Name))
+
+	if rc.Type == "CAA" {
+		b.WriteString(", ")
+		output(rc.CaaTag)
+	} else if rc.Type == "MX" {
+		b.WriteString(", ")
+		output(rc.MxPreference)
+	} else if rc.Type == "SRV" {
+		b.WriteString(fmt.Sprintf(", %v, %v, %v", rc.SrvPriority, rc.SrvWeight, rc.SrvPort))
+	} else if rc.Type == "R53_ALIAS" {
+		b.WriteString(", ")
+		output(rc.R53Alias["type"])
+	}
+
+	// Target
+	b.WriteString(", ")
+	output(rc.Target)
+
+	// Trailer / options.
+	if rc.Type == "R53_ALIAS" {
+		b.WriteString(", R53_ZONE(")
+		output(rc.R53Alias["zone_id"])
+		b.WriteString(")")
+	} else if rc.Type == "CAA" {
+		if rc.CaaFlag == 1<<7 {
+			b.WriteString(", CAA_CRITICAL")
+		} else if rc.CaaFlag > 0 {
+			b.WriteString(fmt.Sprintf(", {\"caaflag\": %v}", rc.CaaFlag))
+		}
+	}
+
+	// TTL
+	if rc.TTL > 0 {
+		b.WriteString(fmt.Sprintf(", TTL(%v)", rc.TTL))
+	}
+	b.WriteString("),")
+	return b.String()
+	// switch r.Type {
+	// case "ANAME", "CNAME", "MX", "NS", "PTR":
+	// case "A", "AAAA", "ALIAS", "CAA", "IMPORT_TRANSFORM", "SRV", "TLSA", "TXT", "SOA", "CF_REDIRECT", "CF_TEMP_REDIRECT":
 }
 
 // ToRR converts a RecordConfig to a dns.RR.

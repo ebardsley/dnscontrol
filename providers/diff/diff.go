@@ -3,6 +3,7 @@ package diff
 import (
 	"fmt"
 	"log"
+	"os"
 	"sort"
 
 	"github.com/StackExchange/dnscontrol/models"
@@ -73,12 +74,28 @@ func (d *differ) IncrementalDiff(existing []*models.RecordConfig) (unchanged, cr
 	}
 	existingByNameAndType := map[key][]*models.RecordConfig{}
 	desiredByNameAndType := map[key][]*models.RecordConfig{}
+	dumpFilename := os.Getenv("DUMP_EXISTING")
 	for _, e := range existing {
 		if d.matchIgnored(e.GetLabel()) {
 			log.Printf("Ignoring record %s %s due to IGNORE", e.GetLabel(), e.Type)
 		} else {
 			k := key{e.GetLabelFQDN(), e.Type}
 			existingByNameAndType[k] = append(existingByNameAndType[k], e)
+		}
+	}
+	if dumpFilename != "" {
+		f, err := os.Create(dumpFilename)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		for _, rs := range existingByNameAndType {
+			for _, e := range rs {
+				f.WriteString(e.ToDSL())
+				f.WriteString("\n")
+				// fmt.Printf("EXISTING: %v\n", e.ToDSL())
+			}
 		}
 	}
 	for _, dr := range desired {
